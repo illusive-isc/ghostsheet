@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>みやぶる虫眼鏡</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f6f1e8; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: none; }
+  .hint {
+    position: fixed; left: 0; right: 0; bottom: 10px; text-align: center;
+    font: 600 13px/1.4 system-ui, sans-serif; color: #7a6a55; pointer-events: none;
+    transition: opacity .6s;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint" id="hint">虫眼鏡を動かしてみやぶろう</div>
+<script>
+// 虫眼鏡画像(1046x1587)のレンズ内側の中心と直径
+const LENS = { cx: 524.5, cy: 546, d: 789 };
+const LENS_D = 0.36;   // レンズ内側の直径（キャラ画像サイズに対する割合）
+const ROTATE = -30;    // 柄の傾き(度)
+const ZOOM = 1.0;      // レンズ内の拡大率（1 でシルエットとぴったり重なる）
+
+const load = (src) => new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = src; });
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const work = document.createElement('canvas');
+const wctx = work.getContext('2d');
+const hint = document.getElementById('hint');
+
+Promise.all(['img/ghost.webp', 'img/kaguya.webp', 'img/lens.png', 'img/lens-mask.png'].map(load))
+  .then(([ghost, kaguya, lens, mask]) => {
+    let W, H, dpr, size, ox, oy;
+    // レンズ中心（キャラ画像に対する 0〜1）
+    const pos = { x: 0.48, y: 0.25 };
+    const target = { x: 0.48, y: 0.25 };
+    let touched = false;
+
+    function resize() {
+      dpr = window.devicePixelRatio || 1;
+      W = canvas.width = work.width = Math.round(innerWidth * dpr);
+      H = canvas.height = work.height = Math.round(innerHeight * dpr);
+      size = Math.min(W, H);
+      ox = (W - size) / 2;
+      oy = (H - size) / 2;
+    }
+
+    function lensTransform(c, px, py) {
+      const s = (LENS_D * size) / LENS.d;
+      c.translate(px, py);
+      c.rotate((ROTATE * Math.PI) / 180);
+      c.scale(s, s);
+      c.translate(-LENS.cx, -LENS.cy);
+    }
+
+    function draw() {
+      const px = ox + pos.x * size, py = oy + pos.y * size;
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(ghost, ox, oy, size, size);
+
+      // レンズ形に切り抜いた 輝夜
+      wctx.setTransform(1, 0, 0, 1, 0, 0);
+      wctx.globalCompositeOperation = 'source-over';
+      wctx.clearRect(0, 0, W, H);
+      wctx.save(); lensTransform(wctx, px, py); wctx.drawImage(mask, 0, 0); wctx.restore();
+      wctx.globalCompositeOperation = 'source-in';
+      wctx.fillStyle = '#f6f1e8';
+      wctx.fillRect(0, 0, W, H);
+      wctx.globalCompositeOperation = 'source-atop';
+      const ks = size * ZOOM;
+      wctx.drawImage(kaguya, px - (px - ox) * ZOOM, py - (py - oy) * ZOOM, ks, ks);
+      ctx.drawImage(work, 0, 0);
+
+      ctx.save(); lensTransform(ctx, px, py); ctx.drawImage(lens, 0, 0); ctx.restore();
+    }
+
+    function tick(t) {
+      if (!touched) {
+        // 触られるまではふわふわ探索
+        target.x = 0.5 + 0.16 * Math.sin(t / 1700);
+        target.y = 0.42 + 0.22 * Math.sin(t / 2300 + 1);
+      }
+      pos.x += (target.x - pos.x) * 0.18;
+      pos.y += (target.y - pos.y) * 0.18;
+      draw();
+      requestAnimationFrame(tick);
+    }
+
+    function point(e) {
+      touched = true;
+      hint.style.opacity = 0;
+      target.x = (e.clientX * dpr - ox) / size;
+      target.y = (e.clientY * dpr - oy) / size;
+    }
+    canvas.addEventListener('pointermove', point);
+    canvas.addEventListener('pointerdown', point);
+
+    addEventListener('resize', resize);
+    resize();
+    requestAnimationFrame(tick);
+  });
+</script>
+</body>
+</html>

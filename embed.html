@@ -23,6 +23,7 @@ const LENS = { cx: 524.5, cy: 546, d: 789 };
 const LENS_D = 0.18;   // レンズ内側の直径（キャラ画像サイズに対する割合）
 const ROTATE = -30;    // 柄の傾き(度)
 const ZOOM = 1.0;      // レンズ内の拡大率（1 でシルエットとぴったり重なる）
+const TOUCH_OFFSET = 2.2; // タッチ時、指からレンズ中心までの距離（レンズ内側の半径に対する倍率）
 
 const load = (src) => new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = src; });
 const canvas = document.getElementById('c');
@@ -93,8 +94,16 @@ Promise.all(['img/ghost.webp', 'img/kaguya.webp', 'img/lens.png', 'img/lens-mask
     function point(e) {
       touched = true;
       hint.style.opacity = 0;
-      target.x = (e.clientX * dpr - ox) / size;
-      target.y = (e.clientY * dpr - oy) / size;
+      let x = e.clientX * dpr, y = e.clientY * dpr;
+      if (e.pointerType === 'touch') {
+        // 指で隠れないよう、指が柄を持つ位置になるようにレンズを指の左上へずらす
+        const r = (LENS_D * size) / 2;
+        const th = (ROTATE * Math.PI) / 180;
+        x -= TOUCH_OFFSET * r * -Math.sin(th);
+        y -= TOUCH_OFFSET * r * Math.cos(th);
+      }
+      target.x = (x - ox) / size;
+      target.y = (y - oy) / size;
     }
     canvas.addEventListener('pointermove', point);
     canvas.addEventListener('pointerdown', point);
